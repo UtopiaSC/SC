@@ -23,8 +23,8 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
 
     }
 
-    function setRevealed() external onlyOwner {
-        isRevealed = true;
+    function setRevealed(bool _isRevealed) external onlyOwner {
+        isRevealed = _isRevealed;
     }
 
     modifier onlyMintAllowedUsers() {
