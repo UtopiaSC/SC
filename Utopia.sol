@@ -10,13 +10,21 @@ import "./Strings.sol";
 
 contract Utopia is Ownable, ERC721A, ReentrancyGuard {
 
+    using Strings for uint256;
+
     mapping(address => bool) public allowedToMint;
+
+    bool isRevealed = false;
 
     constructor(
         uint256 maxBatchSize_,
         uint256 collectionSize_
     ) ERC721A("Utopia", "UTOPIA", maxBatchSize_, collectionSize_) {
 
+    }
+
+    function setRevealed() external onlyOwner {
+        isRevealed = true;
     }
 
     modifier onlyMintAllowedUsers() {
@@ -33,6 +41,7 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
     }
 
     string private _baseTokenURI;
+    string private _baseTokenEndURI;
 
     function _baseURI() internal view virtual override returns (string memory) {
         return _baseTokenURI;
@@ -40,6 +49,14 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
 
     function setBaseURI(string calldata baseURI) external onlyOwner {
         _baseTokenURI = baseURI;
+    }
+
+    function _endURI() internal view virtual override returns (string memory) {
+        return _baseTokenEndURI;
+    }
+
+    function setEndURI(string calldata endURI) external onlyOwner {
+        _baseTokenEndURI = endURI;
     }
 
     function setOwnersExplicit(uint256 quantity) external onlyOwner nonReentrant {
@@ -78,6 +95,35 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
             }
 
             return result;
+        }
+    }
+
+    /**
+     * @dev See {IERC721Metadata-tokenURI}.
+    */
+    function tokenURI(uint256 tokenId)
+        public
+        view
+        virtual
+        override
+        returns (string memory)
+    {
+        require(
+            _exists(tokenId),
+            "ERC721Metadata: URI query for nonexistent token"
+        );
+
+        string memory baseURI = _baseURI();
+        string memory endURI = _endURI();
+
+        if (bytes(baseURI).length > 0) {
+            return "";
+        }
+
+        if (isRevealed) {
+            return string(abi.encodePacked(baseURI, tokenId.toString(), endURI));
+        } else {
+            return string(abi.encodePacked(baseURI, "0", endURI));
         }
     }
 
