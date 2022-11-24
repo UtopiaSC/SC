@@ -32,7 +32,7 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
         _;
     }
 
-    function setAddresToMintAllowed(address _account, bool _canMint) public onlyOwner {
+    function setAddressToMintAllowed(address _account, bool _canMint) public onlyOwner {
         allowedToMint[_account] = _canMint;
     }
 
@@ -40,8 +40,8 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
         _safeMint(to, qty);
     }
 
-    string private _baseTokenURI;
-    string private _baseTokenEndURI;
+    string private _baseTokenURI = "";
+    string private _baseTokenEndURI = "";
 
     function _baseURI() internal view virtual override returns (string memory) {
         return _baseTokenURI;
@@ -87,7 +87,7 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
 
             uint256 tId;
 
-            for (tId = 1; tId <= totalNFTs; ++tId) {
+            for (tId = 0; tId < totalNFTs; ++tId) {
                 if (ownerOf(tId) == _owner) {
                     result[i] = tId;
                     ++i;
@@ -116,7 +116,7 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
         string memory baseURI = _baseURI();
         string memory endURI = _endURI();
 
-        if (bytes(baseURI).length > 0) {
+        if (bytes(baseURI).length == 0) {
             return "";
         }
 
