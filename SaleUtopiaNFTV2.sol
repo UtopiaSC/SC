@@ -12,6 +12,7 @@ import "./MerkleProof.sol";
 interface IUtopia {
     function mint(address to, uint256 qty) external;
     function safeTransferFrom(address from, address to, uint256 tokenId) external;
+    function transferFrom(address from, address to, uint256 tokenId) external;
 }
 
 interface IERC20 {
@@ -31,7 +32,7 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
     // Utopia SC collection
     IUtopia public immutable utopia;
     // Price Feed
-    AggregatorV3Interface internal priceFeed;
+    AggregatorV3Interface public priceFeed;
     // Current Phase
     uint8 public currentPhaseId;
     // Info of each phase.
@@ -81,13 +82,13 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
         PhaseInfo storage phase = phasesInfo[currentPhaseId];
 
         if (phase.whiteListRequired) {
-            bool passMerkle = _checkMerkleProof(_merkleProof);
+            bool passMerkle = checkMerkleProof(_merkleProof);
             require(passMerkle, "Not allowListed");
         }
         _;
     }
 
-    function _checkMerkleProof(bytes32[] calldata _merkleProof) internal virtual returns (bool) {
+    function checkMerkleProof(bytes32[] calldata _merkleProof) public virtual returns (bool) {
         bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
         return MerkleProof.verify(_merkleProof, allowlistMerkleRoot, leaf);
     }
@@ -180,7 +181,7 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
         priceInWei = phase.priceInWeiPerNFTWithoutWhiteList;
 
         if (!_isCreditCardPayment) {
-            if (_checkMerkleProof(_merkleProof)) {
+            if (checkMerkleProof(_merkleProof)) {
                 priceInUSD = phase.priceInUSDPerNFT;
                 priceInWei = phase.priceInWeiPerNFT;
             }
@@ -235,7 +236,7 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
         );
 
         for (uint256 i = 0; i < addresses.length; ++i) {
-            utopia.safeTransferFrom(address(this), addresses[i], tokensId[i]);
+            utopia.transferFrom(address(this), addresses[i], tokensId[i]);
         }
     }
 
