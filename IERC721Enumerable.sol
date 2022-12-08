@@ -20,9 +20,4 @@ interface IERC721Enumerable is IERC721 {
      */
     function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256 tokenId);
 
-    /**
-     * @dev Returns a token ID at a given `index` of all the tokens stored by the contract.
-     * Use along with {totalSupply} to enumerate all tokens.
-     */
-    function tokenByIndex(uint256 index) external view returns (uint256);
 }

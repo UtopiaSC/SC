@@ -9,7 +9,6 @@ import "./IERC721Enumerable.sol";
 import "./Address.sol";
 import "./Context.sol";
 import "./Strings.sol";
-import "./ERC165.sol";
 import "./ERC2981.sol";
 
 /**
@@ -24,7 +23,6 @@ import "./ERC2981.sol";
  */
 contract ERC721A is
 Context,
-ERC165,
 IERC721,
 IERC721Metadata,
 IERC721Enumerable,
@@ -83,6 +81,7 @@ ERC2981
             "ERC721A: collection must have a nonzero supply"
         );
         require(maxBatchSize_ > 0, "ERC721A: max batch size must be nonzero");
+        require(maxBatchSize_ <= 9922, "ERC721A: max batch size must be less than or equal to 9922");
         _name = name_;
         _symbol = symbol_;
         maxBatchSize = maxBatchSize_;
@@ -97,14 +96,6 @@ ERC2981
     }
 
     /**
-     * @dev See {IERC721Enumerable-tokenByIndex}.
-   */
-    function tokenByIndex(uint256 index) public view override returns (uint256) {
-        require(index < totalSupply(), "ERC721A: global index out of bounds");
-        return index;
-    }
-
-    /**
      * @dev See {IERC721Enumerable-tokenOfOwnerByIndex}.
    * This read function is O(collectionSize). If calling from a separate contract, be sure to test gas first.
    * It may also degrade with extremely large collection sizes (e.g >> 10000), test for your use case.
@@ -115,6 +106,7 @@ ERC2981
     override
     returns (uint256)
     {
+        require(index < totalSupply(), "ERC721A: we cannot search for values greater than totalSupply");
         require(index < balanceOf(owner), "ERC721A: owner index out of bounds");
         uint256 numMintedSoFar = totalSupply();
         uint256 tokenIdsIdx = 0;
@@ -137,18 +129,18 @@ ERC2981
     /**
      * @dev See {IERC165-supportsInterface}.
    */
+
     function supportsInterface(bytes4 interfaceId)
     public
     view
     virtual
-    override(ERC165, IERC165)
+    override(ERC2981, IERC165)
     returns (bool)
     {
         return
         interfaceId == type(IERC721).interfaceId ||
         interfaceId == type(IERC721Metadata).interfaceId ||
         interfaceId == type(IERC721Enumerable).interfaceId ||
-        interfaceId == type(IERC2981).interfaceId ||
         super.supportsInterface(interfaceId);
     }
 
@@ -215,7 +207,7 @@ ERC2981
      * @dev See {IERC721Metadata-tokenURI}.
    */
     function tokenURI(uint256 tokenId)
-    public
+    external
     view
     virtual
     override

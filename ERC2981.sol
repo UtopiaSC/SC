@@ -33,11 +33,11 @@ abstract contract ERC2981 is IERC2981, ERC165 {
     /**
      * @dev See {IERC165-supportsInterface}.
      */
-    /*
+
     function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, ERC165) returns (bool) {
         return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
     }
-    */
+
     /**
      * @inheritdoc IERC2981
      */

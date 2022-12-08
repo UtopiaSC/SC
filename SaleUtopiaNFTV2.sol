@@ -5,7 +5,6 @@ pragma solidity ^0.8.0;
 import "./AggregatorV3Interface.sol";
 import "./Ownable.sol";
 import "./ReentrancyGuard.sol";
-import "./SafeMath.sol";
 import "./IERC721Receiver.sol";
 import "./MerkleProof.sol";
 
@@ -25,8 +24,6 @@ interface IERC721 {
 }
 
 contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
-    using SafeMath for uint256;
-
     // treasuryAddr
     address public treasuryAddr;
     // Utopia SC collection
@@ -54,6 +51,10 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
     mapping(uint256 => mapping(address => uint256)) public phasesWalletSales;
     // AllowList
     bytes32 public allowlistMerkleRoot;
+    // AllowedToBuyWithCreditCard
+    mapping(address => bool) public allowedToBuyWithCreditCard;
+    // passMerkle (cache)
+    bool passMerkle;
 
     event AddPhase(uint256 indexed _priceInUSDPerNFT, uint256 indexed _priceInUSDPerNFTWithoutWhiteList, uint256 _maxTotalSales, uint256 _maxSalesPerWallet, bool _whiteListRequired, bool _phasePriceInUSD, uint256 _priceInWeiPerNFT, uint256 _priceInWeiPerNFTWithoutWhiteList);
     event EditPhase(uint8 indexed _phaseId, uint256 indexed _priceInUSDPerNFT, uint256 _priceInUSDPerNFTWithoutWhiteList, uint256 _maxTotalSales, uint256 _maxSalesPerWallet, bool _whiteListRequired, bool _phasePriceInUSD, uint256 _priceInWeiPerNFT, uint256 _priceInWeiPerNFTWithoutWhiteList);
@@ -61,6 +62,25 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
     event ChangePriceFeedAddress(address indexed _priceFeedAddress);
     event Buy(uint256 indexed quantity, address indexed to);
     event BuyWithCreditCard(uint256 indexed quantity, address indexed to);
+    event SetAllowlistMerkleRoot(bytes32 indexed _allowlistMerkleRoot);
+    event SetTreasury(address indexed _treasuryAddr);
+    event WithdrawMoney();
+    event SetAddressToBuyWithCreditCardAllowed(address indexed _account, bool indexed _canBuy);
+
+    modifier onlyAllowListed(bytes32[] calldata _merkleProof) {
+        PhaseInfo storage phase = phasesInfo[currentPhaseId];
+
+        if (phase.whiteListRequired) {
+            passMerkle = checkMerkleProof(_merkleProof);
+            require(passMerkle, "Not allowListed");
+        }
+        _;
+    }
+
+    modifier onlyBuyWithCreditCardAllowedUsers() {
+        require(allowedToBuyWithCreditCard[msg.sender], "You can't buy with credit card ;)");
+        _;
+    }
 
     constructor(
         IUtopia _utopia,
@@ -68,6 +88,10 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
         address _priceFeedAddress,
         uint8 _currentPhaseId
     ) {
+        require(address(_utopia) != address(0));
+        require(_treasuryAddr != address(0));
+        require(_priceFeedAddress != address(0));
+
         utopia = _utopia;
         treasuryAddr = _treasuryAddr;
         priceFeed = AggregatorV3Interface(_priceFeedAddress);
@@ -78,27 +102,23 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
         return this.onERC721Received.selector;
     }
 
-    modifier onlyAllowListed(bytes32[] calldata _merkleProof) {
-        PhaseInfo storage phase = phasesInfo[currentPhaseId];
-
-        if (phase.whiteListRequired) {
-            bool passMerkle = checkMerkleProof(_merkleProof);
-            require(passMerkle, "Not allowListed");
-        }
-        _;
+    function phasesInfoLength() public view returns (uint256) {
+        return phasesInfo.length;
     }
 
-    function checkMerkleProof(bytes32[] calldata _merkleProof) public virtual returns (bool) {
+    function checkMerkleProof(bytes32[] calldata _merkleProof) public view virtual returns (bool) {
         bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
         return MerkleProof.verify(_merkleProof, allowlistMerkleRoot, leaf);
     }
 
     function setCurrentPhase(uint8 _currentPhaseId) external onlyOwner {
+        require(_currentPhaseId < phasesInfoLength(), "you cannot activate a phase that does not yet exist");
         currentPhaseId = _currentPhaseId;
         emit ChangeCurrentPhase(_currentPhaseId);
     }
 
     function changePriceFeedAddress(address _priceFeedAddress) external onlyOwner {
+        require(_priceFeedAddress != address(0));
         priceFeed = AggregatorV3Interface(_priceFeedAddress);
         emit ChangePriceFeedAddress(_priceFeedAddress);
     }
@@ -119,6 +139,12 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
     }
 
     function editPhase(uint8 _phaseId, uint256 _priceInUSDPerNFT, uint256 _priceInUSDPerNFTWithoutWhiteList, uint256 _maxTotalSales, uint256 _maxSalesPerWallet, bool _whiteListRequired, bool _phasePriceInUSD, uint256 _priceInWeiPerNFT, uint256 _priceInWeiPerNFTWithoutWhiteList) external onlyOwner {
+        require(_phaseId < phasesInfoLength(), "you cannot edit a phase that does not exist");
+        require(phasesInfo[_phaseId].priceInUSDPerNFT >= _priceInUSDPerNFT, "Utopia:priceInUSDPerNFT: the price must be equal to or below the previous price");
+        require(phasesInfo[_phaseId].priceInUSDPerNFTWithoutWhiteList >= _priceInUSDPerNFTWithoutWhiteList, "Utopia:priceInUSDPerNFTWithoutWhiteList: the price must be equal to or below the previous price");
+        require(phasesInfo[_phaseId].priceInWeiPerNFT >= _priceInWeiPerNFT, "Utopia:priceInWeiPerNFT: the price must be equal to or below the previous price");
+        require(phasesInfo[_phaseId].priceInWeiPerNFTWithoutWhiteList >= _priceInWeiPerNFTWithoutWhiteList, "Utopia:priceInWeiPerNFTWithoutWhiteList: the price must be equal to or below the previous price");
+
         phasesInfo[_phaseId].priceInUSDPerNFT = _priceInUSDPerNFT;
         phasesInfo[_phaseId].priceInUSDPerNFTWithoutWhiteList = _priceInUSDPerNFTWithoutWhiteList;
         phasesInfo[_phaseId].maxTotalSales = _maxTotalSales;
@@ -145,87 +171,25 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
         );
     }
 
-    modifier callerIsUser() {
-        require(tx.origin == msg.sender, "The caller is another contract");
-        _;
-    }
-
     function setAllowlistMerkleRoot(bytes32 _allowlistMerkleRoot) external onlyOwner {
         allowlistMerkleRoot = _allowlistMerkleRoot;
+        emit SetAllowlistMerkleRoot(_allowlistMerkleRoot);
     }
 
-    function buyWithCreditCard(uint256 _quantity, address _to, bytes32[] calldata _merkleProof) external onlyOwner nonReentrant {
-        _buy(_quantity, _to, true, _merkleProof);
-        emit BuyWithCreditCard(_quantity, _to);
-    }
-
-    function buy(uint256 _quantity, address _to, bytes32[] calldata _merkleProof) external payable nonReentrant onlyAllowListed(_merkleProof) {
-        _buy(_quantity, _to, false, _merkleProof);
-        emit Buy(_quantity, _to);
-    }
-
-    function _buy(uint256 _quantity, address _to, bool _isCreditCardPayment, bytes32[] calldata _merkleProof) internal {
-        uint256 totalPrice = 0;
-        uint256 priceInUSD = 0;
-        uint256 priceInWei = 0;
-
-        PhaseInfo storage phase = phasesInfo[currentPhaseId];
-
-        require(phase.maxTotalSales >= phasesTotalSales[currentPhaseId].add(_quantity), "this phase does not allow this purchase");
-
-        if (!_isCreditCardPayment) {
-            require(phase.maxSalesPerWallet >= phasesWalletSales[currentPhaseId][_to].add(_quantity), "you can not buy as many NFTs in this phase");
-        }
-
-        priceInUSD = phase.priceInUSDPerNFTWithoutWhiteList;
-        priceInWei = phase.priceInWeiPerNFTWithoutWhiteList;
-
-        if (!_isCreditCardPayment) {
-            if (checkMerkleProof(_merkleProof)) {
-                priceInUSD = phase.priceInUSDPerNFT;
-                priceInWei = phase.priceInWeiPerNFT;
-            }
-        }
-
-        if (phase.phasePriceInUSD) {
-            uint256 totalPriceInUSD = priceInUSD.mul(_quantity).mul(1e8).mul(1e18);
-
-            (
-            int ethPrice
-            ) = getLatestPrice();
-
-            uint256 ethPrice256 = uint256(ethPrice);
-            totalPrice = totalPriceInUSD.div(ethPrice256);
-        } else {
-            totalPrice = priceInWei.mul(_quantity);
-        }
-
-        if (_isCreditCardPayment) {
-            totalPrice = 0;
-        }
-
-        phasesTotalSales[currentPhaseId] = phasesTotalSales[currentPhaseId].add(_quantity);
-        phasesWalletSales[currentPhaseId][_to] = phasesWalletSales[currentPhaseId][_to].add(_quantity);
-
-        refundIfOver(totalPrice);
-        treasuryAddr.call{value: address(this).balance}("");
-        utopia.mint(_to, _quantity);
-    }
-
-    function refundIfOver(uint256 price) private {
-        require(msg.value >= price, "Need to send more ETH.");
-        if (msg.value > price) {
-            payable(msg.sender).transfer(msg.value - price);
-        }
+    function setAddressToBuyWithCreditCardAllowed(address _account, bool _canBuy) external onlyOwner {
+        allowedToBuyWithCreditCard[_account] = _canBuy;
+        emit SetAddressToBuyWithCreditCardAllowed(_account, _canBuy);
     }
 
     function setTreasury(address _treasuryAddr) external onlyOwner {
         treasuryAddr = _treasuryAddr;
+        emit SetTreasury(_treasuryAddr);
     }
 
     function withdrawMoney() external onlyOwner {
         (bool success, ) = treasuryAddr.call{value: address(this).balance}("");
         require(success, "Transfer failed.");
+        emit WithdrawMoney();
     }
 
     function transferGuardedNfts(uint256[] memory tokensId, address[] memory addresses) external onlyOwner
@@ -244,12 +208,73 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
         IERC20(tokenAddress).transfer(owner(), tokenAmount);
     }
 
-    function recoverERC721TransferFrom(address nftAddress, address from, address to, uint256 tokenId) external virtual onlyOwner {
-        IERC721(nftAddress).transferFrom(from, to, tokenId);
+    function recoverERC721TransferFrom(address nftAddress, address to, uint256 tokenId) external virtual onlyOwner {
+        IERC721(nftAddress).transferFrom(address(this), to, tokenId);
     }
 
-    function recoverERC721SafeTransferFrom(address nftAddress, address from, address to, uint256 tokenId) external virtual onlyOwner {
-        IERC721(nftAddress).safeTransferFrom(from, to, tokenId);
+    function buyWithCreditCard(uint256 _quantity, address _to) external onlyBuyWithCreditCardAllowedUsers nonReentrant {
+        PhaseInfo storage phase = phasesInfo[currentPhaseId];
+
+        require(phase.maxTotalSales >= phasesTotalSales[currentPhaseId] + _quantity, "this phase does not allow this purchase");
+
+        phasesTotalSales[currentPhaseId] = phasesTotalSales[currentPhaseId] + _quantity;
+
+        utopia.mint(_to, _quantity);
+
+        emit BuyWithCreditCard(_quantity, _to);
+    }
+
+    function buy(uint256 _quantity, address _to, bytes32[] calldata _merkleProof) external payable nonReentrant onlyAllowListed(_merkleProof) {
+        uint256 totalPrice;
+        uint256 priceInUSD;
+        uint256 priceInWei;
+
+        PhaseInfo storage phase = phasesInfo[currentPhaseId];
+
+        uint256 currentPhaseTotalSales = phasesTotalSales[currentPhaseId];
+        uint256 currentPhasesWalletSales = phasesWalletSales[currentPhaseId][_to];
+
+        require(phase.maxTotalSales >= currentPhaseTotalSales + _quantity, "this phase does not allow this purchase");
+        require(phase.maxSalesPerWallet >= currentPhasesWalletSales + _quantity, "you can not buy as many NFTs in this phase");
+
+        if (passMerkle) {
+            priceInUSD = phase.priceInUSDPerNFT;
+            priceInWei = phase.priceInWeiPerNFT;
+        } else {
+            priceInUSD = phase.priceInUSDPerNFTWithoutWhiteList;
+            priceInWei = phase.priceInWeiPerNFTWithoutWhiteList;
+        }
+
+        if (phase.phasePriceInUSD) {
+            uint256 totalPriceInUSD = priceInUSD * _quantity * 1e8 * 1e18;
+
+            (
+            int ethPrice
+            ) = getLatestPrice();
+
+            uint256 ethPrice256 = uint256(ethPrice);
+            totalPrice = (totalPriceInUSD * 1e24) / (ethPrice256 * 1e24);
+        } else {
+            totalPrice = priceInWei * _quantity;
+        }
+
+        phasesTotalSales[currentPhaseId] = currentPhaseTotalSales + _quantity;
+        phasesWalletSales[currentPhaseId][_to] = currentPhasesWalletSales + _quantity;
+
+        refundIfOver(totalPrice);
+        (bool success, ) = treasuryAddr.call{value: address(this).balance}("");
+        require(success);
+        utopia.mint(_to, _quantity);
+
+        emit Buy(_quantity, _to);
+    }
+
+    function refundIfOver(uint256 price) private {
+        require(msg.value >= price, "Need to send more ETH.");
+        if (msg.value > price) {
+            (bool success, ) = msg.sender.call{value: msg.value - price}("");
+            require(success);
+        }
     }
 
 }

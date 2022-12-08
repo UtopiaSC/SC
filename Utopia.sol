@@ -6,15 +6,36 @@ import "./Ownable.sol";
 import "./ReentrancyGuard.sol";
 import "./ERC721A.sol";
 import "./Strings.sol";
-//import "@openzeppelin/contracts/token/common/ERC2981.sol";
+import "./ERC721Enumerable.sol";
 
-contract Utopia is Ownable, ERC721A, ReentrancyGuard {
+contract Utopia is Ownable, ERC721A, ERC721Enumerable,  ReentrancyGuard {
 
     using Strings for uint256;
 
     mapping(address => bool) public allowedToMint;
 
-    bool isRevealed = false;
+    bool public isRevealed = false;
+    bool public mintFinished = false;
+
+    string private _baseTokenURI = "";
+    string private _unrevealedTokenURI = "";
+    string private _baseTokenEndURI = "";
+
+    event SetRevealed(bool indexed _isRevealed);
+    event SetMintFinished(bool indexed _mintFinished);
+    event SetAddressToMintAllowed(address indexed _account, bool indexed _canMint);
+    event SetBaseURI(string indexed _baseURI);
+    event SetUnrevealedURI(string indexed _unrevealedURI);
+    event SetEndURI(string indexed _endURI);
+    event SetOwnersExplicit(uint256 indexed _quantity);
+    event SetDefaultRoyalty(address indexed _receiver, uint96 indexed _feeNumerator);
+    event SetTokenRoyalty(uint256 indexed _tokenId, address indexed _receiver, uint96 indexed _feeNumerator);
+    event ResetTokenRoyalty(uint256 indexed _tokenId);
+
+    modifier onlyMintAllowedUsers() {
+        require(allowedToMint[msg.sender], "You can't mint ;)");
+        _;
+    }
 
     constructor(
         uint256 maxBatchSize_,
@@ -25,45 +46,45 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
 
     function setRevealed(bool _isRevealed) external onlyOwner {
         isRevealed = _isRevealed;
+        emit SetRevealed(_isRevealed);
     }
 
-    modifier onlyMintAllowedUsers() {
-        require(allowedToMint[msg.sender], "You can't mint ;)");
-        _;
+    function setMintFinished(bool _mintFinished) external onlyOwner {
+        mintFinished = _mintFinished;
+        emit SetMintFinished(_mintFinished);
     }
 
-    function setAddressToMintAllowed(address _account, bool _canMint) public onlyOwner {
+    function setAddressToMintAllowed(address _account, bool _canMint) external onlyOwner {
         allowedToMint[_account] = _canMint;
+        emit SetAddressToMintAllowed(_account, _canMint);
     }
 
-    function mint(address to, uint256 qty) onlyMintAllowedUsers external {
+    function mint(address to, uint256 qty) onlyMintAllowedUsers nonReentrant external {
         _safeMint(to, qty);
     }
 
-    string private _baseTokenURI = "";
-    string private _baseTokenEndURI = "";
-
-    function _baseURI() internal view virtual override returns (string memory) {
-        return _baseTokenURI;
-    }
-
     function setBaseURI(string calldata baseURI) external onlyOwner {
+        require(mintFinished, "Utopia: minting must be completed first");
         _baseTokenURI = baseURI;
+        emit SetBaseURI(baseURI);
     }
 
-    function _endURI() internal view virtual override returns (string memory) {
-        return _baseTokenEndURI;
+    function setUnrevealedURI(string calldata unrevealedURI) external onlyOwner {
+        _unrevealedTokenURI = unrevealedURI;
+        emit SetUnrevealedURI(unrevealedURI);
     }
 
     function setEndURI(string calldata endURI) external onlyOwner {
         _baseTokenEndURI = endURI;
+        emit SetEndURI(endURI);
     }
 
-    function setOwnersExplicit(uint256 quantity) external onlyOwner nonReentrant {
+    function setOwnersExplicit(uint256 quantity) external onlyOwner {
         _setOwnersExplicit(quantity);
+        emit SetOwnersExplicit(quantity);
     }
 
-    function numberMinted(address owner) public view returns (uint256) {
+    function numberMinted(address owner) external view returns (uint256) {
         return _numberMinted(owner);
     }
 
@@ -102,7 +123,7 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
      * @dev See {IERC721Metadata-tokenURI}.
     */
     function tokenURI(uint256 tokenId)
-        public
+        external
         view
         virtual
         override
@@ -114,6 +135,7 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
         );
 
         string memory baseURI = _baseURI();
+        string memory unrevealedURI = _unrevealedURI();
         string memory endURI = _endURI();
 
         if (bytes(baseURI).length == 0) {
@@ -123,7 +145,7 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
         if (isRevealed) {
             return string(abi.encodePacked(baseURI, tokenId.toString(), endURI));
         } else {
-            return string(abi.encodePacked(baseURI, "0", endURI));
+            return string(abi.encodePacked(unrevealedURI, "0", endURI));
         }
     }
 
@@ -133,6 +155,7 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
 
     function setDefaultRoyalty(address receiver, uint96 feeNumerator) external onlyOwner {
         _setDefaultRoyalty(receiver, feeNumerator);
+        emit SetDefaultRoyalty(receiver, feeNumerator);
     }
 
     function deleteDefaultRoyalty() external onlyOwner {
@@ -141,9 +164,23 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
 
     function setTokenRoyalty(uint256 tokenId, address receiver, uint96 feeNumerator) external onlyOwner {
         _setTokenRoyalty(tokenId, receiver, feeNumerator);
+        emit SetTokenRoyalty(tokenId, receiver, feeNumerator);
     }
 
-    function resetTokenRoyalty(uint256 tokenId) internal onlyOwner {
+    function resetTokenRoyalty(uint256 tokenId) external onlyOwner {
         _resetTokenRoyalty(tokenId);
+        emit ResetTokenRoyalty(tokenId);
+    }
+
+    function _baseURI() internal view virtual override returns (string memory) {
+        return _baseTokenURI;
+    }
+
+    function _unrevealedURI() internal view virtual returns (string memory) {
+        return _unrevealedTokenURI;
+    }
+
+    function _endURI() internal view virtual override returns (string memory) {
+        return _baseTokenEndURI;
     }
 }
