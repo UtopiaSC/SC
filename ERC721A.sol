@@ -100,7 +100,7 @@ ERC2981
    * This read function is O(collectionSize). If calling from a separate contract, be sure to test gas first.
    * It may also degrade with extremely large collection sizes (e.g >> 10000), test for your use case.
    */
-    function tokenOfOwnerByIndex(address owner, uint256 index)
+    function tokenOfOwnerByIndex(address owner, uint256 index, uint256 _rangeStart, uint256 _rangeEnd)
     public
     view
     override
@@ -108,10 +108,12 @@ ERC2981
     {
         require(index < totalSupply(), "ERC721A: we cannot search for values greater than totalSupply");
         require(index < balanceOf(owner), "ERC721A: owner index out of bounds");
-        uint256 numMintedSoFar = totalSupply();
+        require(_rangeStart >= 0);
+        require(_rangeEnd < totalSupply());
+
         uint256 tokenIdsIdx = 0;
         address currOwnershipAddr = address(0);
-        for (uint256 i = 0; i < numMintedSoFar; i++) {
+        for (uint256 i = _rangeStart; i < _rangeEnd; i++) {
             TokenOwnership memory ownership = _ownerships[i];
             if (ownership.addr != address(0)) {
                 currOwnershipAddr = ownership.addr;

@@ -6,9 +6,8 @@ import "./Ownable.sol";
 import "./ReentrancyGuard.sol";
 import "./ERC721A.sol";
 import "./Strings.sol";
-import "./ERC721Enumerable.sol";
 
-contract Utopia is Ownable, ERC721A, ERC721Enumerable,  ReentrancyGuard {
+contract Utopia is Ownable, ERC721A, ReentrancyGuard {
 
     using Strings for uint256;
 
@@ -94,29 +93,6 @@ contract Utopia is Ownable, ERC721A, ERC721Enumerable,  ReentrancyGuard {
     returns (TokenOwnership memory)
     {
         return ownershipOf(tokenId);
-    }
-
-    function tokensOfOwner(address _owner) external view returns(uint256[] memory ownerTokens) {
-        uint256 tokenCount = balanceOf(_owner);
-
-        if (tokenCount == 0) {
-            return new uint256[](0);
-        } else {
-            uint256[] memory result = new uint256[](tokenCount);
-            uint256 totalNFTs = totalSupply();
-            uint256 i = 0;
-
-            uint256 tId;
-
-            for (tId = 0; tId < totalNFTs; ++tId) {
-                if (ownerOf(tId) == _owner) {
-                    result[i] = tId;
-                    ++i;
-                }
-            }
-
-            return result;
-        }
     }
 
     /**
