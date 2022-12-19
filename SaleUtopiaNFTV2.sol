@@ -69,7 +69,7 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
         PhaseInfo storage phase = phasesInfo[currentPhaseId];
 
         if (phase.whiteListRequired) {
-            require(_to == msg.sender, "In this phase it is mandatory that you can only mine to your own wallet");
+            require(_to == msg.sender, "In this phase it is mandatory that you can only mint to your own wallet");
             bool passMerkle = checkMerkleProof(_merkleProof, _to);
             require(passMerkle, "Not allowListed");
         }
