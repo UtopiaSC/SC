@@ -9,6 +9,7 @@ import "./IERC721Enumerable.sol";
 import "./Address.sol";
 import "./Context.sol";
 import "./Strings.sol";
+//import "./ERC165.sol";
 import "./ERC2981.sol";
 
 /**
@@ -23,6 +24,7 @@ import "./ERC2981.sol";
  */
 contract ERC721A is
 Context,
+//ERC165,
 IERC721,
 IERC721Metadata,
 IERC721Enumerable,
@@ -93,6 +95,14 @@ ERC2981
    */
     function totalSupply() public view override returns (uint256) {
         return currentIndex;
+    }
+
+    /**
+   * @dev See {IERC721Enumerable-tokenByIndex}.
+   */
+    function tokenByIndex(uint256 index) public view override returns (uint256) {
+        require(index < totalSupply(), "ERC721A: global index out of bounds");
+        return index;
     }
 
     /**

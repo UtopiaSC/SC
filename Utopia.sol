@@ -7,7 +7,7 @@ import "./ReentrancyGuard.sol";
 import "./ERC721A.sol";
 import "./Strings.sol";
 
-contract Utopia is Ownable, ERC721A,  ReentrancyGuard {
+contract Utopia is Ownable, ERC721A, ReentrancyGuard {
 
     using Strings for uint256;
 
@@ -95,29 +95,6 @@ contract Utopia is Ownable, ERC721A,  ReentrancyGuard {
         return ownershipOf(tokenId);
     }
 
-    function tokensOfOwner(address _owner) external view returns(uint256[] memory ownerTokens) {
-        uint256 tokenCount = balanceOf(_owner);
-
-        if (tokenCount == 0) {
-            return new uint256[](0);
-        } else {
-            uint256[] memory result = new uint256[](tokenCount);
-            uint256 totalNFTs = totalSupply();
-            uint256 i = 0;
-
-            uint256 tId;
-
-            for (tId = 0; tId < totalNFTs; ++tId) {
-                if (ownerOf(tId) == _owner) {
-                    result[i] = tId;
-                    ++i;
-                }
-            }
-
-            return result;
-        }
-    }
-
     /**
      * @dev See {IERC721Metadata-tokenURI}.
     */
@@ -136,10 +113,6 @@ contract Utopia is Ownable, ERC721A,  ReentrancyGuard {
         string memory baseURI = _baseURI();
         string memory unrevealedURI = _unrevealedURI();
         string memory endURI = _endURI();
-
-        if (bytes(baseURI).length == 0) {
-            return "";
-        }
 
         if (isRevealed) {
             return string(abi.encodePacked(baseURI, tokenId.toString(), endURI));
