@@ -6,9 +6,8 @@ import "./Ownable.sol";
 import "./ReentrancyGuard.sol";
 import "./ERC721A.sol";
 import "./Strings.sol";
-import "./ERC721Enumerable.sol";
 
-contract Utopia is Ownable, ERC721A, ERC721Enumerable,  ReentrancyGuard {
+contract Utopia is Ownable, ERC721A,  ReentrancyGuard {
 
     using Strings for uint256;
 

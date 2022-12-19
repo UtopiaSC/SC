@@ -53,8 +53,6 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
     bytes32 public allowlistMerkleRoot;
     // AllowedToBuyWithCreditCard
     mapping(address => bool) public allowedToBuyWithCreditCard;
-    // passMerkle (cache)
-    bool passMerkle;
 
     event AddPhase(uint256 indexed _priceInUSDPerNFT, uint256 indexed _priceInUSDPerNFTWithoutWhiteList, uint256 _maxTotalSales, uint256 _maxSalesPerWallet, bool _whiteListRequired, bool _phasePriceInUSD, uint256 _priceInWeiPerNFT, uint256 _priceInWeiPerNFTWithoutWhiteList);
     event EditPhase(uint8 indexed _phaseId, uint256 indexed _priceInUSDPerNFT, uint256 _priceInUSDPerNFTWithoutWhiteList, uint256 _maxTotalSales, uint256 _maxSalesPerWallet, bool _whiteListRequired, bool _phasePriceInUSD, uint256 _priceInWeiPerNFT, uint256 _priceInWeiPerNFTWithoutWhiteList);
@@ -67,11 +65,12 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
     event WithdrawMoney();
     event SetAddressToBuyWithCreditCardAllowed(address indexed _account, bool indexed _canBuy);
 
-    modifier onlyAllowListed(bytes32[] calldata _merkleProof) {
+    modifier onlyAllowListed(bytes32[] calldata _merkleProof, address _to) {
         PhaseInfo storage phase = phasesInfo[currentPhaseId];
 
         if (phase.whiteListRequired) {
-            passMerkle = checkMerkleProof(_merkleProof);
+            require(_to == msg.sender, "In this phase it is mandatory that you can only mine to your own wallet");
+            bool passMerkle = checkMerkleProof(_merkleProof, _to);
             require(passMerkle, "Not allowListed");
         }
         _;
@@ -106,8 +105,8 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
         return phasesInfo.length;
     }
 
-    function checkMerkleProof(bytes32[] calldata _merkleProof) public view virtual returns (bool) {
-        bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
+    function checkMerkleProof(bytes32[] calldata _merkleProof, address _to) public view virtual returns (bool) {
+        bytes32 leaf = keccak256(abi.encodePacked(_to));
         return MerkleProof.verify(_merkleProof, allowlistMerkleRoot, leaf);
     }
 
@@ -224,28 +223,23 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
         emit BuyWithCreditCard(_quantity, _to);
     }
 
-    function buy(uint256 _quantity, address _to, bytes32[] calldata _merkleProof) external payable nonReentrant onlyAllowListed(_merkleProof) {
+    function buy(uint256 _quantity, address _to, bytes32[] calldata _merkleProof) external payable nonReentrant onlyAllowListed(_merkleProof, _to) {
         uint256 totalPrice;
         uint256 priceInUSD;
         uint256 priceInWei;
 
-        PhaseInfo storage phase = phasesInfo[currentPhaseId];
+        require(phasesInfo[currentPhaseId].maxTotalSales >= phasesTotalSales[currentPhaseId] + _quantity, "this phase does not allow this purchase");
+        require(phasesInfo[currentPhaseId].maxSalesPerWallet >= phasesWalletSales[currentPhaseId][_to] + _quantity, "you can not buy as many NFTs in this phase");
 
-        uint256 currentPhaseTotalSales = phasesTotalSales[currentPhaseId];
-        uint256 currentPhasesWalletSales = phasesWalletSales[currentPhaseId][_to];
-
-        require(phase.maxTotalSales >= currentPhaseTotalSales + _quantity, "this phase does not allow this purchase");
-        require(phase.maxSalesPerWallet >= currentPhasesWalletSales + _quantity, "you can not buy as many NFTs in this phase");
-
-        if (passMerkle) {
-            priceInUSD = phase.priceInUSDPerNFT;
-            priceInWei = phase.priceInWeiPerNFT;
+        if (checkMerkleProof(_merkleProof, _to)) {
+            priceInUSD = phasesInfo[currentPhaseId].priceInUSDPerNFT;
+            priceInWei = phasesInfo[currentPhaseId].priceInWeiPerNFT;
         } else {
-            priceInUSD = phase.priceInUSDPerNFTWithoutWhiteList;
-            priceInWei = phase.priceInWeiPerNFTWithoutWhiteList;
+            priceInUSD = phasesInfo[currentPhaseId].priceInUSDPerNFTWithoutWhiteList;
+            priceInWei = phasesInfo[currentPhaseId].priceInWeiPerNFTWithoutWhiteList;
         }
 
-        if (phase.phasePriceInUSD) {
+        if (phasesInfo[currentPhaseId].phasePriceInUSD) {
             uint256 totalPriceInUSD = priceInUSD * _quantity * 1e8 * 1e18;
 
             (
@@ -258,8 +252,8 @@ contract SaleUtopiaNFTV2 is Ownable, ReentrancyGuard, IERC721Receiver {
             totalPrice = priceInWei * _quantity;
         }
 
-        phasesTotalSales[currentPhaseId] = currentPhaseTotalSales + _quantity;
-        phasesWalletSales[currentPhaseId][_to] = currentPhasesWalletSales + _quantity;
+        phasesTotalSales[currentPhaseId] = phasesTotalSales[currentPhaseId] + _quantity;
+        phasesWalletSales[currentPhaseId][_to] = phasesWalletSales[currentPhaseId][_to] + _quantity;
 
         refundIfOver(totalPrice);
         (bool success, ) = treasuryAddr.call{value: address(this).balance}("");
