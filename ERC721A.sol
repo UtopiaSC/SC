@@ -83,7 +83,8 @@ ERC2981
             "ERC721A: collection must have a nonzero supply"
         );
         require(maxBatchSize_ > 0, "ERC721A: max batch size must be nonzero");
-        require(maxBatchSize_ <= 9922, "ERC721A: max batch size must be less than or equal to 9922");
+        require(maxBatchSize_ <= 50, "ERC721A: max batch size must be less than or equal to 9922");
+        require(collectionSize_ == 9922, "ERC721A: the collection must have a size of 9922 NFTs");
         _name = name_;
         _symbol = symbol_;
         maxBatchSize = maxBatchSize_;
