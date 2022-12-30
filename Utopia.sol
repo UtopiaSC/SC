@@ -7,9 +7,16 @@ import "./ReentrancyGuard.sol";
 import "./ERC721A.sol";
 import "./Strings.sol";
 
+interface ISaleUtopiaNFTV2 {
+    function buy(uint256 _quantity, address _to, bytes32[] calldata _merkleProof) external payable;
+}
+
 contract Utopia is Ownable, ERC721A, ReentrancyGuard {
 
     using Strings for uint256;
+
+    address public treasuryAddr;
+    address public saleUtopiaNFT;
 
     mapping(address => bool) public allowedToMint;
 
@@ -30,6 +37,8 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
     event SetDefaultRoyalty(address indexed _receiver, uint96 indexed _feeNumerator);
     event SetTokenRoyalty(uint256 indexed _tokenId, address indexed _receiver, uint96 indexed _feeNumerator);
     event ResetTokenRoyalty(uint256 indexed _tokenId);
+    event SetTreasury(address indexed _treasuryAddr);
+    event WithdrawMoney();
 
     modifier onlyMintAllowedUsers() {
         require(allowedToMint[msg.sender], "You can't mint ;)");
@@ -40,7 +49,11 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
         uint256 maxBatchSize_,
         uint256 collectionSize_
     ) ERC721A("Utopia", "UTOPIA", maxBatchSize_, collectionSize_) {
+        treasuryAddr = msg.sender;
+    }
 
+    function setSaleUtopiaNFT(address _saleUtopiaNFT) external onlyOwner {
+        saleUtopiaNFT = _saleUtopiaNFT;
     }
 
     function setRevealed(bool _isRevealed) external onlyOwner {
@@ -120,9 +133,6 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
         }
     }
 
-    /**
-     * @dev See {IERC721Metadata-tokenURI}.
-    */
     function tokenURI(uint256 tokenId)
         external
         view
@@ -180,4 +190,21 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
     function _endURI() internal view virtual override returns (string memory) {
         return _baseTokenEndURI;
     }
+
+    function buyWithCrossmint(uint256 _quantity, address _to, bytes32[] calldata _merkleProof) external payable {
+        ISaleUtopiaNFTV2(saleUtopiaNFT).buy{value:msg.value}(_quantity, _to, _merkleProof);
+    }
+
+    function setTreasury(address _treasuryAddr) external onlyOwner {
+        treasuryAddr = _treasuryAddr;
+        emit SetTreasury(_treasuryAddr);
+    }
+
+    function withdrawMoney() external onlyOwner {
+        (bool success, ) = treasuryAddr.call{value: address(this).balance}("");
+        require(success, "Transfer failed.");
+        emit WithdrawMoney();
+    }
+
+    receive() external payable {}
 }
