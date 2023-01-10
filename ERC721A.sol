@@ -152,6 +152,7 @@ ERC2981
         interfaceId == type(IERC721).interfaceId ||
         interfaceId == type(IERC721Metadata).interfaceId ||
         interfaceId == type(IERC721Enumerable).interfaceId ||
+        interfaceId == type(ERC2981).interfaceId ||
         super.supportsInterface(interfaceId);
     }
 
