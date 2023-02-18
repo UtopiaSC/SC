@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.13;
 
 import "./IERC721.sol";
 import "./IERC721Receiver.sol";
@@ -253,7 +253,7 @@ ERC2981
     /**
      * @dev See {IERC721-approve}.
    */
-    function approve(address to, uint256 tokenId) public override {
+    function approve(address to, uint256 tokenId) public override virtual {
         address owner = ERC721A.ownerOf(tokenId);
         require(to != owner, "ERC721A: approval to current owner");
 
@@ -277,7 +277,7 @@ ERC2981
     /**
      * @dev See {IERC721-setApprovalForAll}.
    */
-    function setApprovalForAll(address operator, bool approved) public override {
+    function setApprovalForAll(address operator, bool approved) public override virtual {
         require(operator != _msgSender(), "ERC721A: approve to caller");
 
         _operatorApprovals[_msgSender()][operator] = approved;
@@ -304,7 +304,7 @@ ERC2981
         address from,
         address to,
         uint256 tokenId
-    ) public override {
+    ) public override virtual {
         _transfer(from, to, tokenId);
     }
 
@@ -315,7 +315,7 @@ ERC2981
         address from,
         address to,
         uint256 tokenId
-    ) public override {
+    ) public override virtual {
         safeTransferFrom(from, to, tokenId, "");
     }
 
@@ -327,7 +327,7 @@ ERC2981
         address to,
         uint256 tokenId,
         bytes memory _data
-    ) public override {
+    ) public override virtual {
         _transfer(from, to, tokenId);
         require(
             _checkOnERC721Received(from, to, tokenId, _data),

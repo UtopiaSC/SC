@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.13;
 
 import "./Ownable.sol";
 import "./ReentrancyGuard.sol";
 import "./ERC721A.sol";
 import "./Strings.sol";
+import {DefaultOperatorFilterer} from "./DefaultOperatorFilterer.sol";
 
 interface ISaleUtopiaNFTV2 {
     function buy(uint256 _quantity, address _to, bytes32[] calldata _merkleProof) external payable;
 }
 
-contract Utopia is Ownable, ERC721A, ReentrancyGuard {
+contract Utopia is Ownable, ERC721A, ReentrancyGuard, DefaultOperatorFilterer {
 
     using Strings for uint256;
 
@@ -205,6 +206,31 @@ contract Utopia is Ownable, ERC721A, ReentrancyGuard {
         require(success, "Transfer failed.");
         emit WithdrawMoney();
     }
+
+    function setApprovalForAll(address operator, bool approved) public override onlyAllowedOperatorApproval(operator) {
+        super.setApprovalForAll(operator, approved);
+    }
+
+    function approve(address operator, uint256 tokenId) public override onlyAllowedOperatorApproval(operator) {
+        super.approve(operator, tokenId);
+    }
+
+    function transferFrom(address from, address to, uint256 tokenId) public override onlyAllowedOperator(from) {
+        super.transferFrom(from, to, tokenId);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId) public override onlyAllowedOperator(from) {
+        super.safeTransferFrom(from, to, tokenId);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data)
+    public
+    override
+    onlyAllowedOperator(from)
+    {
+        super.safeTransferFrom(from, to, tokenId, data);
+    }
+
 
     receive() external payable {}
 }
